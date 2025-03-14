@@ -6,15 +6,17 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "notes_table")
 data class Note(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    @PrimaryKey(autoGenerate = true)
+    val id: Int = 0,
     val title: String,
-    val description : String,
+    val description: String,
     val content: String,
     val color: Int,
-    val timestamp: Long = System.currentTimeMillis(),
-    val folderName: String // New column to store folder name
+    val timestamp: Long,
+    val folderName: String = "Uncategorized",
+    val folderId: Int? = null,
+    var drawingData: String? = null // ADDED: Field to store drawing data (nullable String)
 )
-
 
 
 @Entity(tableName = "folders_table")

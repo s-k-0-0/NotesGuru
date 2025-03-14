@@ -1,174 +1,279 @@
 package com.example.optimusnotes
 
+import android.content.Context
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.annotation.RequiresApi
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Create
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Note
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import com.example.optimusnotes.repository.NotesRepository
-import com.example.optimusnotes.roomdb.Note
 import com.example.optimusnotes.roomdb.NotesDB
+import com.example.optimusnotes.screens.AppFontStyle
+import com.example.optimusnotes.screens.AppTheme
+import com.example.optimusnotes.screens.CalendarScreen
 import com.example.optimusnotes.screens.DisplayDialog
 import com.example.optimusnotes.screens.DisplayNotesScreen
+import com.example.optimusnotes.screens.DrawingScreen
+import com.example.optimusnotes.screens.FoldersScreen
+import com.example.optimusnotes.screens.FontStyleState
 import com.example.optimusnotes.screens.NoteDetailScreen
+import com.example.optimusnotes.screens.SettingsScreen
+import com.example.optimusnotes.screens.ThemePreferenceManager
+import com.example.optimusnotes.screens.ThemeState
+import com.example.optimusnotes.screens.ThemeSwitcher
 import com.example.optimusnotes.ui.theme.OptimusNotesTheme
+import com.example.optimusnotes.viewmodel.FolderViewModel
+import com.example.optimusnotes.viewmodel.FolderViewModelFactory
 import com.example.optimusnotes.viewmodel.NoteViewModel
 import com.example.optimusnotes.viewmodel.NoteViewModelFactory
-
+//ads
+import com.google.android.gms.ads.MobileAds
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 
 class MainActivity : ComponentActivity() {
+    private lateinit var noteViewModel: NoteViewModel // Declare ViewModels at Activity level
+    private lateinit var folderViewModel: FolderViewModel
+    private lateinit var themePreferenceManager: ThemePreferenceManager
+
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Initialize Mobile Ads on a background thread
+        lifecycleScope.launch(Dispatchers.IO) {
+            MobileAds.initialize(this@MainActivity) {}
+        }
+
         val database = NotesDB.getInstance(applicationContext)
-        val noteDao = database.noteDao
-        val folderDao = database.folderDao  // Get the folderDao from the same NotesDB instance
-        val repository = NotesRepository(noteDao) // Pass both noteDao and folderDao
-        val viewModelFactory = NoteViewModelFactory(repository)
-        val noteViewModel = ViewModelProvider(this, viewModelFactory)[NoteViewModel::class.java]
+        val noteRepository = NotesRepository(database.noteDao)
+        val noteViewModelFactory = NoteViewModelFactory(noteRepository)
+        noteViewModel =
+            ViewModelProvider(this, noteViewModelFactory)[NoteViewModel::class.java] // Initialize here
+
+        // Get FolderDao and create FolderViewModelFactory and FolderViewModel
+        val folderDao = database.folderDao
+        val folderViewModelFactory = FolderViewModelFactory(folderDao)
+        folderViewModel =
+            ViewModelProvider(this, folderViewModelFactory)[FolderViewModel::class.java] // Initialize here
+
+        //themes
+        themePreferenceManager = ThemePreferenceManager(this) // Initialize here
+
 
         setContent {
-            val navController = rememberNavController()
+            val themeState = remember { mutableStateOf(AppTheme.SYSTEM_DEFAULT) }
+            val fontStyleState = remember { mutableStateOf(AppFontStyle.DEFAULT) }
 
-            OptimusNotesTheme {
-                Scaffold(
-                    floatingActionButton = {
-                        FloatingActionButton(
-                            onClick = { navController.navigate("addNote") }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = "Add Note"
-                            )
-                        }
-                    }
-                ) { paddingValues ->
-                    NavHost(
-                        navController = navController,
-                        startDestination = "home"
-                    ) {
-                        // Home Screen
-                        composable("home") {
-                            val notes by noteViewModel.getNotesByFolder("Uncategorized").observeAsState(emptyList())
+            CompositionLocalProvider(
+                ThemeState provides themeState,
+                FontStyleState provides fontStyleState
+            ) { // Opening brace of CompositionLocalProvider
+                ThemeSwitcher { // ThemeSwitcher now *inside* CompositionLocalProvider
+                    val navController = rememberNavController()
+                    val showDialog = remember { mutableStateOf(false) }
+                    // State for Bottom Navigation selection
+                    var selectedItem by rememberSaveable { mutableStateOf("notes") } // Start with "notes" selected
 
-                            DisplayNotesScreen(
-                                notes = notes,
-                                navController = navController,
-                                onDeleteNote = { noteViewModel.deleteNote(it) }
-                            )
-                        }
+                    Scaffold(
+                        bottomBar = { // **Add BottomNavigation here**
+                            NavigationBar(modifier = Modifier) {
 
-                        // Add Note Screen
-                        composable("addNote") {
-                            var showDialog by remember { mutableStateOf(false) }
+                                NavigationBarItem(
+                                    selected = selectedItem == "notes",
+                                    onClick = {
+                                        if (selectedItem != "notes") { // ADDED check
+                                            selectedItem = "notes"
+                                            navController.navigate("home")
+                                        }
+                                    },
+                                    icon = {
+                                        Icon(
+                                            Icons.Filled.Note,
+                                            contentDescription = "Notes"
+                                        )
+                                    },
+                                    label = { Text("Notes") }
+                                )
+                                NavigationBarItem(
+                                    selected = selectedItem == "calendar",
+                                    onClick = {
+                                        if (selectedItem != "calendar") { // ADDED check
+                                            selectedItem = "calendar"
+                                            navController.navigate("calendar")
+                                        }
+                                    },
+                                    icon = {
+                                        Icon(
+                                            Icons.Filled.CalendarMonth,
+                                            contentDescription = "Calendar"
+                                        )
+                                    },
+                                    label = { Text("Calendar") }
+                                )
 
-                            LaunchedEffect(Unit) {
-                                showDialog = true
+                                NavigationBarItem( // ADDED DRAWING NAVIGATION ITEM
+                                    selected = selectedItem == "drawing",
+                                    onClick = {
+                                        if (selectedItem != "drawing") {
+                                            selectedItem = "drawing"
+                                            navController.navigate("drawing")
+                                        }
+                                    },
+                                    icon = {
+                                        Icon(
+                                            Icons.Filled.Create, // You can choose a different icon
+                                            contentDescription = "Drawing"
+                                        )
+                                    },
+                                    label = { Text("Drawing") }
+                                )
+                                NavigationBarItem(
+                                    selected = selectedItem == "settings",
+                                    onClick = {
+                                        if (selectedItem != "settings") { // ADDED check
+                                            selectedItem = "settings"
+                                            navController.navigate("settings")
+                                        }
+                                    },
+                                    icon = {
+                                        Icon(
+                                            Icons.Filled.Settings,
+                                            contentDescription = "Settings"
+                                        )
+                                    },
+                                    label = { Text("Settings") }
+                                )
                             }
+                        },
+                        content = { paddingValues ->
+                            Column(modifier = Modifier.padding(paddingValues)) {
 
-                            if (showDialog) {
+                                val navBackStackEntry by navController.currentBackStackEntryAsState() // Get current back stack entry
+                                val currentRoute =
+                                    navBackStackEntry?.destination?.route // Extract current route
+
+                                // Update selectedItem based on currentRoute
+                                selectedItem = when (currentRoute) {
+                                    "home" -> "notes"
+                                    "settings" -> "settings"
+                                    "drawing" -> "drawing" // ADDED DRAWING ROUTE
+                                    "calendar" -> "calendar"
+                                    else -> selectedItem // Keep current selection for other routes (like noteDetail, edit_note)
+                                }
+
                                 DisplayDialog(
                                     viewModel = noteViewModel,
-                                    showDialog = true
+                                    showDialog = showDialog.value,
+                                    onDismiss = { showDialog.value = false },
+                                    folderViewModel = folderViewModel
+                                )
+                                NavHost(
+                                    navController = navController,
+                                    startDestination = "home" // Start at "home" (notes)
                                 ) {
-                                    showDialog = false
-                                    navController.popBackStack()
+                                    composable("home") {
+                                        val notes by noteViewModel.getNotesByFolder("Uncategorized")
+                                            .observeAsState(emptyList())
+
+                                        DisplayNotesScreen(
+                                            notes = notes,
+                                            navController = navController,
+                                            onDeleteNote = { noteViewModel.deleteNote(it) },
+                                            folderViewModel = folderViewModel // Pass folderViewModel
+                                        )
+                                    }
+                                    composable(
+                                        route = "edit_note/{noteId}",
+                                        arguments = listOf(
+                                            navArgument("noteId") { type = NavType.IntType }
+                                        )
+                                    ) { backStackEntry ->
+                                        val noteId =
+                                            backStackEntry.arguments?.getInt("noteId") ?: 0
+                                        val note by noteViewModel.getNoteById(noteId)
+                                            .observeAsState()
+
+                                        note?.let { currentNote ->
+                                            NoteDetailScreen(
+                                                noteId = noteId,
+                                                note = currentNote,
+                                                onNoteUpdate = { updatedNote ->
+                                                    noteViewModel.updateNote(updatedNote)
+                                                },
+                                                onDeleteNote = {
+                                                    noteViewModel.deleteNote(currentNote)
+                                                    navController.popBackStack()
+                                                }
+                                            )
+                                        }
+                                    }
+                                    composable(
+                                        route = "noteDetail/{noteId}",
+                                        arguments = listOf(
+                                            navArgument("noteId") { type = NavType.IntType }
+                                        )
+                                    ) { backStackEntry ->
+                                        val noteId =
+                                            backStackEntry.arguments?.getInt("noteId") ?: 0
+                                        val note by noteViewModel.getNoteById(noteId)
+                                            .observeAsState()
+                                        note?.let {
+                                            NoteDetailScreen(
+                                                noteId = noteId,
+                                                note = it,
+                                                onNoteUpdate = { updatedNote ->
+                                                    noteViewModel.updateNote(updatedNote)
+                                                },
+                                                onDeleteNote = {
+                                                    noteViewModel.deleteNote(it)
+                                                    navController.popBackStack()
+                                                }
+                                            )
+                                        }
+                                    }
+
+                                    composable("settings") {
+                                        SettingsScreen(
+                                            themePreferenceManager = themePreferenceManager,
+                                            modifier = Modifier
+                                        ) // PASS themePreferenceManager HERE
+                                    }
+                                    composable("drawing") {
+                                        DrawingScreen()
+                                    }
+                                    composable("calendar") {
+                                        CalendarScreen(navController = navController) // **Passed navController here!**
+                                    }
                                 }
                             }
                         }
-
-                        // Edit Note Screen
-                        composable(
-                            route = "edit_note/{noteId}",
-                            arguments = listOf(navArgument("noteId") { type = NavType.IntType })
-                        ) { backStackEntry ->
-                            val noteId = backStackEntry.arguments?.getInt("noteId") ?: 0
-                            val note by noteViewModel.getNoteById(noteId).observeAsState()
-
-                            note?.let { currentNote ->
-                                NoteDetailScreen(
-                                    note = currentNote,
-                                    onNoteUpdate = { updatedNote ->
-                                        noteViewModel.updateNote(updatedNote)
-                                        navController.popBackStack()
-                                    },
-                                    onDeleteNote = {
-                                        noteViewModel.deleteNote(currentNote)
-                                        navController.popBackStack()
-                                    }
-                                )
-                            }
-                        }
-                    }
+                    )
                 }
             }
         }
     }
-}
-
-
-
-// Color Picker Component
-@Composable
-fun MyColorPicker(selectedColor: Color, onColorSelected: (Color) -> Unit) {
-    val colors = listOf(
-        Color.Red, Color.Green, Color.Blue,
-        Color.Yellow, Color.Cyan, Color.White, Color.Magenta
-    )
-
-    LazyRow(
-        horizontalArrangement = Arrangement.Center,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp)
-    ) {
-        items(colors) { color ->
-            ColorOption(
-                color = color,
-                isSelected = color == selectedColor,
-                onClick = { onColorSelected(color) }
-            )
-        }
-    }
-}
-
-// Single Color Option in Picker
-@Composable
-fun ColorOption(color: Color, isSelected: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .padding(4.dp)
-            .clip(CircleShape)
-            .background(color)
-            .border(
-                width = if (isSelected) 4.dp else 0.dp,
-                color = if (isSelected) Color.Black else Color.Transparent,
-                shape = CircleShape
-            )
-            .clickable { onClick() }
-    )
 }

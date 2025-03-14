@@ -1,10 +1,13 @@
 package com.example.optimusnotes.viewmodel
 
+import android.content.Context
+import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.optimusnotes.repository.NotesRepository
 import com.example.optimusnotes.roomdb.Note
+import com.example.optimusnotes.roomdb.NotesDB
 import kotlinx.coroutines.launch
 
 class NoteViewModel(private val repository: NotesRepository) : ViewModel() {
@@ -35,4 +38,8 @@ class NoteViewModel(private val repository: NotesRepository) : ViewModel() {
     fun getNoteById(id: Int): LiveData<Note?> {
         return repository.getNoteById(id)
     }
+
+
 }
+
+

@@ -2,7 +2,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
 
-    id("com.google.devtools.ksp") version "1.9.0-1.0.13"}
+    id("com.google.devtools.ksp") version "1.9.0-1.0.13"
+}
 
 android {
     namespace = "com.example.optimusnotes"
@@ -23,7 +24,7 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -65,23 +66,32 @@ dependencies {
     implementation(libs.androidx.navigation.runtime.ktx)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.generativeai)
-    implementation(libs.androidx.constraintlayout)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.espresso.core.v350) // **ADD THIS LINE**
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
-    val room_version = "2.6.1"
 
+    val room_version = "2.6.1"
     implementation("androidx.room:room-runtime:$room_version")
     ksp("androidx.room:room-compiler:$room_version")
-
     implementation("androidx.room:room-ktx:$room_version")
 
-    //icons
-    implementation("androidx.compose.material:material-icons-extended:1.7.7")
+    //icons - Version managed by Compose BOM
+    implementation("androidx.compose.material:material-icons-extended")
+
+
+    //google ads
+    implementation("com.google.android.gms:play-services-ads:23.6.0")
+
+    //widget
+    implementation("androidx.glance:glance-appwidget:1.1.1")
+
+    //splash
+    implementation("androidx.core:core-splashscreen:1.0.1")
+
 
 }

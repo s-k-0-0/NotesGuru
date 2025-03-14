@@ -4,6 +4,7 @@ import androidx.lifecycle.LiveData
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 
@@ -27,8 +28,18 @@ interface NoteDao {
 
     @Delete
     suspend fun delete(note: Note)
-}
 
+    @Query("SELECT * FROM notes_table WHERE timestamp BETWEEN :startTime AND :endTime ORDER BY timestamp DESC")
+    suspend fun getNotesBetweenTimestamps(startTime: Long, endTime: Long): List<Note>
+
+    @Query("SELECT * FROM notes_table")
+    fun getAllNotesDebug(): List<Note>
+
+
+
+
+
+}
 
 
 
@@ -36,15 +47,18 @@ interface NoteDao {
 @Dao
 interface FolderDao {
 
-    @Insert
-    suspend fun addFolder(folder: Folder)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertFolder(folder: Folder)
 
-    @Query("SELECT * FROM folders_table")
-    fun getAllFolders(): LiveData<List<Folder>>
+    @Update
+    suspend fun updateFolder(folder: Folder)
 
-    @Query("DELETE FROM folders_table WHERE folderName = :folderName")
-    suspend fun deleteFolder(folderName: String)
+    @Delete
+    suspend fun deleteFolder(folder: Folder)
 
-    @Query("UPDATE folders_table SET folderName = :newFolder WHERE folderName = :oldFolder")
-    suspend fun renameFolder(oldFolder: String, newFolder: String)
+    @Query("SELECT * FROM folders_table ORDER BY folderName ASC")
+    fun getFolders(): LiveData<List<Folder>>
+
+
 }
+
