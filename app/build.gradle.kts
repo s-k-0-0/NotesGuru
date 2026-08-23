@@ -68,7 +68,7 @@ dependencies {
     implementation(libs.generativeai)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core.v350) // **ADD THIS LINE**
+    androidTestImplementation(libs.androidx.espresso.core.v350) 
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
